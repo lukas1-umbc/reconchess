@@ -70,7 +70,12 @@ class p5v2(Player):
         self.color = color
         
     def handle_opponent_move_result(self, captured_my_piece: bool, capture_square: Optional[Square]):
-        pass
+
+        # if the opponent captured our piece, remove it from our board.
+        self.my_piece_captured_square = capture_square
+        if captured_my_piece:
+            self.board.remove_piece_at(capture_square)
+
 
     def choose_sense(self, sense_actions: List[Square], move_actions: List[chess.Move], seconds_left: float) -> Square:
         return random.choice(sense_actions)
@@ -101,6 +106,9 @@ class p5v2(Player):
 
                 # update the distributions for each square with a piece in the sense
                 distList[row][col][pieceIndex] = 1
+                for i in range(0, 6):
+                    if i != pieceIndex:
+                        distList[row][col][i] = 0
                   
                 # find the squares on the board whose highest probabilites in their distributions are the current piece in the current square
                 for i in range(7, -1, -1):
