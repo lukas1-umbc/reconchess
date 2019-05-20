@@ -4,8 +4,11 @@ import numpy
 from reconchess import *
 import chess.engine
 import os
+import sys
 
 STOCKFISH_ENV_VAR = 'STOCKFISH_EXECUTABLE'
+
+numBadStates = 0
 
 # 8x8x16 list
 distList = [[ [0 for dist in range(6)] for row in range(8)] for col in range(8)]
@@ -169,6 +172,15 @@ class p5v4(Player):
 
     def choose_sense(self, sense_actions: List[Square], move_actions: List[chess.Move], seconds_left: float) -> Square:
 
+        # if our piece was just captured, sense where it was captured
+        if self.my_piece_captured_square:
+            return self.my_piece_captured_square
+
+        # if we might capture a piece when we move, sense where the capture will occur
+        future_move = self.choose_move(move_actions, seconds_left)
+        if future_move is not None and self.board.piece_at(future_move.to_square) is not None:
+            return future_move.to_square
+
         getSingleTotals()
         get9SquareTotals()
         max_row = 0;
@@ -192,6 +204,7 @@ class p5v4(Player):
     def handle_sense_result(self, sense_result: List[Tuple[Square, Optional[chess.Piece]]]):
 
         global distList
+
         # rough estimate of the number of possible moves for an opponent's piece
         # from my research, 30 seems like a common average number of possible moves in a turn for a player
         n = 30/oppPiecesLeft
@@ -227,15 +240,20 @@ class p5v4(Player):
                 # find the square in pieceList closest to the current square (This was really hard to do)
                 magicTup = min(pieceList, key = lambda x: tupSub(x, (row, col)))
 
-                # adjust that square's probability for the current piece
+                # adjust that square's probability for the current piece (MOVE)
                 stayProb = distList[magicTup[0]][magicTup[1]][pieceIndex] * ((oppPiecesLeft-1)/oppPiecesLeft)
-                distList[magicTup[0]][magicTup[1]][pieceIndex] = stayProb
+                distList[magicTup[0]][magicTup[1]][pieceIndex] = distList[magicTup[0]][magicTup[1]][pieceIndex] + ((1-stayProb)/n)
                 pieceList.remove(magicTup)
 
-                # adjust the rest of the square's probabilities
+                # adjust the rest of the square's probabilities (STAY)
                 for pair in pieceList:
-                    distList[pair[0]][pair[1]][pieceIndex] = distList[pair[0]][pair[1]][pieceIndex] + ((1-stayProb)/n)
+                    distList[pair[0]][pair[1]][pieceIndex] *= ((oppPiecesLeft-1)/oppPiecesLeft)
 
+            # square has piece but its ours - might not even be necessary but can't hurt
+            elif piece is not None and piece.color == self.color:
+                for i in range(0, 6):
+                    distList[row][col][i] = 0
+            
             # square has no piece
             else:
                 # update the distributions for each square with no piece
@@ -250,6 +268,15 @@ class p5v4(Player):
 
     def choose_move(self, move_actions: List[chess.Move], seconds_left: float) -> Optional[chess.Move]:
 
+        # if we might be able to take the king, try to (copied from trout_bot.py)
+        enemy_king_square = self.board.king(not self.color)
+        if enemy_king_square:
+            # if there are any ally pieces that can take king, execute one of those moves
+            enemy_king_attackers = self.board.attackers(self.color, enemy_king_square)
+            if enemy_king_attackers:
+                attacker_square = enemy_king_attackers.pop()
+                return chess.Move(attacker_square, enemy_king_square)
+
         # clear the board of all pieces and re-add our own pieces
         # this was the only way to do it
         tempBoard = chess.Board(self.board.fen())
@@ -260,19 +287,17 @@ class p5v4(Player):
             if piece != None and piece.color == self.color:
                     tempBoard.set_piece_at(curr_index, piece)
 
-
         # loop through the probabilities and add opponent piece if the probability is high enough
 
         num_pawns = 0
         # default king is at starting position
-        #we are the white player
+        # we are the white player
         if self.color == True:
             king_index = 60
         # we are the black player
         else:
             king_index = 4
         king_prob = 0
-
 
         for row in range(8):
             for col in range(8):
@@ -313,6 +338,9 @@ class p5v4(Player):
         # add the king wherever the highest probability is
         tempBoard.set_piece_at(king_index, chess.Piece(getIndex("king") + 1, not self.color))
 
+        print()
+        print(tempBoard)
+        #printDist(distList)  
 
         #Stockfish: copied from TroutBot
         try:
@@ -323,9 +351,15 @@ class p5v4(Player):
                 return result.move
         except (chess.engine.EngineError, chess.engine.EngineTerminatedError) as e:
             print('Engine bad state at "{}"'.format(tempBoard.fen()))
+            print(e)
+            global numBadStates
+            numBadStates+=1
 
         # if stockfish fails
-        return random.choice(move_actions + [None])
+        move = random.choice(move_actions + [None])
+        while move not in move_actions:
+                return random.choice(move_actions + [None])
+        return move
 
 
 
@@ -343,9 +377,16 @@ class p5v4(Player):
                 distList[row][col][prob] = 0
 
         # if a move was executed, apply it to our board
+        # we also want to set all probabilities in the square we moved to to 0
         if taken_move is not None:
             self.board.push(taken_move)
+            square = taken_move.to_square
+            row = square//8
+            col = square - (row * 8)
+            for prob in range(0, 6):
+                distList[row][col][prob] = 0
 
     def handle_game_end(self, winner_color: Optional[Color], win_reason: Optional[WinReason],
                         game_history: GameHistory):
+        print("Number of bad states = ", numBadStates)
         self.engine.quit()
