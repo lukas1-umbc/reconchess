@@ -283,9 +283,8 @@ class p5v4(Player):
 
         for curr_index in range(64):
             piece = tempBoard.remove_piece_at(curr_index)
-
             if piece != None and piece.color == self.color:
-                    tempBoard.set_piece_at(curr_index, piece)
+                tempBoard.set_piece_at(curr_index, piece)
 
         # loop through the probabilities and add opponent piece if the probability is high enough
 
@@ -341,6 +340,16 @@ class p5v4(Player):
         print()
         print(tempBoard)
         #printDist(distList)  
+
+        # testing - check whether the board we feed to stockfish has our king
+        foundKing = False
+        for i in range(0, 64):
+            kingPiece = tempBoard.piece_at(i)
+            if kingPiece is not None and kingPiece.piece_type == 6 and kingPiece.color is self.color:
+                foundKing = True
+        if foundKing == False:
+            print("Couldn't find our king, exiting.")
+            sys.exit()
 
         #Stockfish: copied from TroutBot
         try:
