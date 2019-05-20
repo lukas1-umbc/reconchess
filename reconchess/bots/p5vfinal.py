@@ -18,12 +18,12 @@ OPEN_MOVES = [
      chess.Move(chess.G3, chess.H3), # Knight releases from home
      chess.Move(chess.E2, chess.E3), # King's Pawn releases (Counters 4-move w/ bishop)
     ],
-    
+
     # Black initial checkmate setup
     [# The capturing of the king should happen incidentally
      chess.Move(chess.F6, chess.F2), # Queen captures Pawn
      chess.Move(chess.H4, chess.E1), # Queen captures Pawn or ends (Could be blocked)
-     chess.Move(chess.F6, chess.G4), # Knight moving to position 
+     chess.Move(chess.F6, chess.G4), # Knight moving to position
      chess.Move(chess.G8, chess.F6), # Knight releases from home (Checks for knight on F6)
      chess.Move(chess.D8, chess.H4), # Queen moving to position (Account for captures here)
      chess.Move(chess.E7, chess.E6), # King's Pawn releases (Counters 4-move w/ bishop)
@@ -46,7 +46,7 @@ OPEN_SCANS = [
      chess.F2, # Anything at G6, check King's position
      chess.G4, # Check for 5-move checkmate and Queen safety (take piece in H5)
      chess.D5, # Knight rushes, F6 covered by knight move (May have to pC7 > C6)
-     chess.G4, # Could make conditional... Verifies Queen safety 
+     chess.G4, # Could make conditional... Verifies Queen safety
      chess.F2, # King's Knight, King's Pawn, and Pawn at G3
     ]
 ]
@@ -188,7 +188,11 @@ class p5v4(Player):
         self.color = color
         self.board = board
         self.turn_number = 0
-        
+
+        self.my_piece_captured_square = None
+        self.selected_move = None
+        self.strength = 0
+
         if self.color == chess.BLACK:
             self.move_list = OPEN_MOVES[1]
             self.scan_list = OPEN_SCANS[1]
@@ -205,7 +209,7 @@ class p5v4(Player):
             self.move_list.clear()
             self.scan_list.clear()
             self.scan_list.append(capture_square)
-        
+
         # remove captured pieces
         self.my_piece_captured_square = capture_square
         if captured_my_piece:
@@ -216,7 +220,7 @@ class p5v4(Player):
 
         self.turn_number = self.turn_number + 1 # done when sensing to keep turn number consistent when referencing arrays
 
-        # if our piece was just captured, sense where it was captured  
+        # if our piece was just captured, sense where it was captured
         if self.my_piece_captured_square:
             return self.my_piece_captured_square
 
@@ -323,7 +327,7 @@ class p5v4(Player):
             elif piece is not None and piece.color == self.color:
                 for i in range(0, 6):
                     distList[row][col][i] = 0
-            
+
             # square has no piece
             elif piece is None:
                 # update the distributions for each square with no piece
@@ -342,7 +346,7 @@ class p5v4(Player):
             if revenge_attackers:
                 attacker_square = revenge_attackers.pop()
                 self.move_list.append(chess.Move(attacker_square, self.latest_captured))
-        
+
         if self.turn_number < 6:
             # Check for knight attempting to rush king
             if self.color == chess.BLACK:
@@ -371,11 +375,43 @@ class p5v4(Player):
 
         if len(self.move_list) == 0:
             # BRANDI: MOVE GENERATION ALGORITHM GOES HERE, IN PLACE OF THE RANDOM SELECTION
-            return random.choice(move_actions + [None])
+
+            self.selected_move = None
+
+            for move in move_actions:
+                if self.board.piece_at(move.to_square) is chess.KING:
+                    self.selected_move = move
+                    return self.selected_move
+                elif self.board.piece_at(move.to_square) is chess.QUEEN:
+                    self.selected_move = move
+                    return self.selected_move
+                else:
+                    if self.board.piece_at(move.to_square) is chess.PAWN:
+                        if self.strength < 1:
+                            self.strength = 1
+                            self.selected_move = move
+                    elif self.board.piece_at(move.to_square) is chess.BISHOP:
+                        if self.strength < 3:
+                            self.strength = 3
+                            self.selected_move = move
+                    elif self.board.piece_at(move.to_square) is chess.KNIGHT:
+                        if self.strength < 7:
+                            self.strength = 7
+                            self.selected_move = move
+                    elif self.board.piece_at(move.to_square) is chess.ROOK:
+                        if self.strength < 5:
+                            self.strength = 5
+                            self.selected_move = move
+                    else:
+                        self.selected_move = random.choice(move_actions + [None])
+
+            return self.selected_move
+
+            #return random.choice(move_actions + [None])
         else:
             return self.move_list.pop()
 
-       
+
 
 
     def handle_move_result(self, requested_move: Optional[chess.Move], taken_move: Optional[chess.Move],
