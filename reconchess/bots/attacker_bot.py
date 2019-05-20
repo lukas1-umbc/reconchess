@@ -29,7 +29,8 @@ def flipped_move(move):
 
 class AttackerBot(Player):
     def __init__(self):
-        self.move_sequence = random.choice(QUICK_ATTACKS)
+        self.move_sequence = QUICK_ATTACKS[3]
+        #self.move_sequence = random.choice(QUICK_ATTACKS)
 
     def handle_game_start(self, color: Color, board: chess.Board):
         if color == chess.BLACK:
