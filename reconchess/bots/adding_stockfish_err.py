@@ -378,7 +378,7 @@ class p5v4(Player):
         # if stockfish fails
         move = random.choice(move_actions + [None])
         while move not in move_actions:
-                return random.choice(move_actions + [None])
+                move = random.choice(move_actions + [None])
         return move
 
 
