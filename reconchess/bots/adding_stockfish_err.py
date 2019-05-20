@@ -255,7 +255,7 @@ class p5v4(Player):
                     distList[row][col][i] = 0
             
             # square has no piece
-            else:
+            elif piece is None:
                 # update the distributions for each square with no piece
                 # no piece, so set all probabilities in distribution to 0
                 for i in range(0,6):
@@ -279,15 +279,14 @@ class p5v4(Player):
 
         # clear the board of all pieces and re-add our own pieces
         # this was the only way to do it
-        tempBoard = chess.Board(self.board.fen())
+        #tempBoard = chess.Board(self.board.fen())
 
-        for curr_index in range(64):
-            piece = tempBoard.remove_piece_at(curr_index)
-            if piece != None and piece.color == self.color:
-                tempBoard.set_piece_at(curr_index, piece)
+        #for curr_index in range(64):
+            #piece = tempBoard.remove_piece_at(curr_index)
+            #if piece != None and piece.color == self.color:
+              # tempBoard.set_piece_at(curr_index, piece)
 
         # loop through the probabilities and add opponent piece if the probability is high enough
-
         num_pawns = 0
         # default king is at starting position
         # we are the white player
@@ -327,24 +326,36 @@ class p5v4(Player):
                     # max of 8 pawns
                     if max_type == getIndex("pawn"):
                         if num_pawns < 8:
-                            tempBoard.set_piece_at(curr_index, chess.Piece(getIndex("pawn") + 1, not self.color))
+                            self.board.set_piece_at(curr_index, chess.Piece(getIndex("pawn") + 1, not self.color))
                             num_pawns = num_pawns + 1
 
                     # other pieces
                     else:
-                        tempBoard.set_piece_at(curr_index, chess.Piece(max_type + 1, not self.color))
+                        self.board.set_piece_at(curr_index, chess.Piece(max_type + 1, not self.color))
 
         # add the king wherever the highest probability is
-        tempBoard.set_piece_at(king_index, chess.Piece(getIndex("king") + 1, not self.color))
+        self.board.set_piece_at(king_index, chess.Piece(getIndex("king") + 1, not self.color))
+
+        # if we might be able to take the king, try to (copied from trout_bot.py)
+        enemy_king_square = self.board.king(not self.color)
+        if enemy_king_square:
+            # if there are any ally pieces that can take king, execute one of those moves
+            enemy_king_attackers = self.board.attackers(self.color, enemy_king_square)
+            if enemy_king_attackers:
+                attacker_square = enemy_king_attackers.pop()
+                return chess.Move(attacker_square, enemy_king_square)
 
         print()
-        print(tempBoard)
+        print("self.board: ")
+        print(self.board)
+        #print("tempBoard: ")
+       # print(tempBoard)
         #printDist(distList)  
 
         # testing - check whether the board we feed to stockfish has our king
         foundKing = False
         for i in range(0, 64):
-            kingPiece = tempBoard.piece_at(i)
+            kingPiece = self.board.piece_at(i)
             if kingPiece is not None and kingPiece.piece_type == 6 and kingPiece.color is self.color:
                 foundKing = True
         if foundKing == False:
@@ -353,13 +364,13 @@ class p5v4(Player):
 
         #Stockfish: copied from TroutBot
         try:
-            tempBoard.turn = self.color
-            tempBoard.clear_stack()
-            result = self.engine.play(tempBoard, chess.engine.Limit(time=0.5))
+            self.board.turn = self.color
+            self.board.clear_stack()
+            result = self.engine.play(self.board, chess.engine.Limit(time=0.5))
             if result.move in move_actions:
                 return result.move
         except (chess.engine.EngineError, chess.engine.EngineTerminatedError) as e:
-            print('Engine bad state at "{}"'.format(tempBoard.fen()))
+            print('Engine bad state at "{}"'.format(self.board.fen()))
             print(e)
             global numBadStates
             numBadStates+=1
